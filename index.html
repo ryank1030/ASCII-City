@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASCII Downtown</title>
+<style>
+  :root { --fg: #9ff; --dim: #6a5a8a; --accent: #ff3cbe; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; font-family: "DejaVu Sans Mono", "JetBrains Mono", Menlo, Consolas, monospace; color: var(--fg); }
+  canvas { display: block; image-rendering: pixelated; cursor: crosshair; }
+  #hud { position: fixed; top: 8px; left: 10px; font-size: 12px; line-height: 1.4; white-space: pre; pointer-events: none; text-shadow: 0 0 6px #0ff8; }
+  #hud .loc { color: var(--accent); text-shadow: 0 0 6px #f0a8; }
+  #start { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000a; cursor: pointer; }
+  #start pre { margin: 0; color: var(--accent); text-shadow: 0 0 10px #f0a; font-size: clamp(6px, 1.25vw, 14px); line-height: 1.1; }
+  #start .sub { margin-top: 22px; font-size: 14px; color: var(--fg); letter-spacing: 2px; animation: blink 1.2s steps(2) infinite; }
+  #start .keys { margin-top: 18px; font-size: 12px; color: var(--dim); white-space: pre; line-height: 1.5; }
+  @keyframes blink { 50% { opacity: .25; } }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<div id="hud"></div>
+<div id="start">
+<pre>
+    _    ____   ____ ___ ___     ____   _____        ___   _ _____ _____        ___   _
+   / \  / ___| / ___|_ _|_ _|   |  _ \ / _ \ \      / / \ | |_   _/ _ \ \      / / \ | |
+  / _ \ \___ \| |    | | | |    | | | | | | \ \ /\ / /|  \| | | || | | \ \ /\ / /|  \| |
+ / ___ \ ___) | |___ | | | |    | |_| | |_| |\ V  V / | |\  | | || |_| |\ V  V / | |\  |
+/_/   \_\____/ \____|___|___|   |____/ \___/  \_/\_/  |_| \_| |_| \___/  \_/\_/  |_| \_|
+</pre>
+<div class="sub">[ CLICK TO ENTER THE CITY ]</div>
+<div class="keys">WASD move    MOUSE look    SHIFT run    F fly on/off (SPACE / C up/down)
+ARROWS look (no mouse)    R rain    G glow    [ ] text size    H hud    ESC release mouse</div>
+</div>
+<script src="src/font.js"></script>
+<script src="src/world.js"></script>
+<script src="src/render.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
