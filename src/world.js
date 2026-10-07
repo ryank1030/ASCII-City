@@ -14,7 +14,7 @@ function makeCity() {
   const M = {
     BLDG: 1, SIGN: 2, POLE: 3, LAMP: 4, GLASS: 5, AD: 6, BENCH: 7, BIN: 8,
     TLIGHT: 9, VEND: 10, ANTENNA: 11, TANK: 12, HOLO: 13, ROOF: 14,
-    CAR: 15, CABIN: 16, FLYER: 17, AC: 18, PLANTER: 19,
+    CAR: 15, CABIN: 16, FLYER: 17, AC: 18, PLANTER: 19, PIZZERIA: 20,
   };
 
   const NEON = [
@@ -121,6 +121,24 @@ function makeCity() {
 
   const plaza = new Uint8Array(NB * NB);
 
+  // Street addresses: the sidewalk spot in front of every ground-floor
+  // doorway. Shopfront doorways sit where (u mod 8) is 5.6..7.2 along a
+  // facade (see the shopfront shading in render.js). Recording them uses no
+  // rnd() calls, so the city layout is unaffected.
+  const addresses = [];
+  function recordDoors(bx, by, side, a0, a1) {
+    const base = side < 2 ? bx : by;
+    const street = side === 0 ? stName(by / P) : side === 1 ? stName(by / P + 1)
+      : side === 2 ? aveName(bx / P) : aveName(bx / P + 1);
+    const blockNo = (side < 2 ? bx : by) / P + 1;
+    for (let k = Math.ceil((base + a0 + 1 - 6.4) / 8); 8 * k + 6.4 <= base + a1 - 1; k++) {
+      const a = 8 * k + 6.4 - base;
+      const r = sideRect(bx, by, side, a, a, 9, 9);
+      const num = blockNo * 100 + 2 * Math.round(a / 2.2) + (side & 1);
+      addresses.push({ x: r[0], y: r[1], side, a, bx, by, label: `${num} ${street}` });
+    }
+  }
+
   // ---- buildings ----
   function bldgParam(style, lit, tint, edge) {
     return style | (Math.floor(lit * 255) << 4) | (tint << 12) | ((edge ? 1 : 0) << 16);
@@ -137,6 +155,7 @@ function makeCity() {
       else continue;
       const len = a1 - a0;
       if (len < 5) continue;
+      recordDoors(bx, by, side, a0, a1);
       // storefront signs above the shop windows
       const n = Math.max(1, Math.floor(len / 13));
       const seg = len / n;
@@ -331,6 +350,37 @@ function makeCity() {
 
   for (let bj = 0; bj < NB; bj++) for (let bi = 0; bi < NB; bi++) genBlock(bi, bj);
 
+  // ---- pizzerias ----
+  // Chosen with a separate RNG and given explicit box seeds, so the main
+  // rnd() stream (and therefore the rest of the city and traffic) is unchanged.
+  const PIZZA_NAMES = ["NEON SLICE", "PIZZA 2099", "MEGA SLICE", "CHROME CRUST", "DOUGH-JO", "HOT BYTES", "SLICE CITY"];
+  const PIZZA_RED = [255, 90, 30], PIZZA_YEL = [255, 200, 60];
+  const pizzerias = [];
+  {
+    let ps = 2099;
+    const prnd = () => {
+      ps = (ps + 0x6D2B79F5) | 0;
+      let t = Math.imul(ps ^ (ps >>> 15), 1 | ps);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const wd = d => Math.abs(d - W * Math.round(d / W));
+    for (let tries = 0; tries < 4000 && pizzerias.length < PIZZA_NAMES.length; tries++) {
+      const ad = addresses[Math.floor(prnd() * addresses.length)];
+      if (ad.a < 14 || ad.a > P - 14) continue; // keep clear of the corners
+      if (pizzerias.some(p => wd(p.addr.x - ad.x) + wd(p.addr.y - ad.y) < 260)) continue;
+      const name = PIZZA_NAMES[pizzerias.length], seed = 7000 + pizzerias.length;
+      const { bx, by, side, a } = ad;
+      const r1 = sideRect(bx, by, side, a - 6, a + 6, 9.35, 9.65);   // name sign over the door
+      add(r1[0], r1[1], 3.3, r1[2], r1[3], 5.6, M.SIGN, T(name), rgb(PIZZA_YEL), seed);
+      const r2 = sideRect(bx, by, side, a + 3.4, a + 3.64, 7.9, 9.3); // blade sign
+      add(r2[0], r2[1], 5.6, r2[2], r2[3], 11.6, M.SIGN, T("PIZZA"), rgb(PIZZA_RED), seed);
+      const r3 = sideRect(bx, by, side, a - 2.2, a + 2.2, 8.4, 9.98); // striped awning
+      add(r3[0], r3[1], 2.75, r3[2], r3[3], 3.0, M.PIZZERIA, 0, rgb(PIZZA_RED), seed);
+      pizzerias.push({ name, addr: ad });
+    }
+  }
+
   // ---- spatial grid (CSR layout) ----
   const cellStart = new Int32Array(N * N + 1);
   const cellMaxH = new Float32Array(N * N);
@@ -381,5 +431,6 @@ function makeCity() {
     P, ROAD, WALK, NB, W, CS, N, M, NEON, TINTS, maxH,
     B, BM, BP, BC, BS, nb, cellStart, cellItems, cellMaxH,
     texts, plaza, vehicles, aveName, stName, SF_PLATE, SF_FLICKER,
+    addresses, pizzerias,
   };
 }

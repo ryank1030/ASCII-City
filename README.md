@@ -34,6 +34,19 @@ Click the title screen to enter. The mouse is captured for looking around.
 | `H` | hide HUD |
 | `Esc` | release the mouse |
 
+## Pizza delivery
+
+There's always an order waiting:
+
+1. **Pick up.** An orange light beacon marks the nearest pizzeria; look for the striped awning and big PIZZA signs. Walk into the pulsing ring at its door.
+2. **Deliver.** A cyan beacon marks the customer's street address (e.g. `429 ONYX AV`), somewhere 180 to 650 m away. The street-name plates on every corner help you navigate.
+3. **Get paid.** Every delivery pays a fare based on distance. Arrive before the timer runs out to earn a tip: the faster you are, the bigger the tip. Late deliveries still pay the fare.
+
+The panel in the top right shows the order, a compass (`@` marks the target; `<<` / `>>` means turn around), the distance, the time left, and your cash and delivery count.
+
+- You can't fly while carrying a pizza. Flying is fine for scouting between orders.
+- Progress (cash, deliveries, best tip) is saved in your browser.
+
 ## What's in the city
 
 - 16×16 blocks of procedurally generated streets that wrap around, so the city never ends
@@ -53,6 +66,7 @@ Click the title screen to enter. The mouse is captured for looking around.
 | `src/world.js` | procedural city: every object is an axis-aligned box bucketed into a wrapping 4 m grid |
 | `src/render.js` | ray/grid DDA tracer and per-material ASCII shading |
 | `src/font.js` | 5×7 bitmap font for sign lettering |
+| `src/delivery.js` | pizza delivery jobs: orders, timer, pay/tips, compass HUD |
 | `src/main.js` | WebGL glyph display, input, collision, worker pool, HUD |
 | `tools/preview.js` | renders a frame straight into your terminal: `node tools/preview.js` |
 

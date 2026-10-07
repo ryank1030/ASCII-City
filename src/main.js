@@ -5,6 +5,8 @@
   const params = new URLSearchParams(location.search);
   const canvas = document.getElementById("screen");
   const hud = document.getElementById("hud");
+  const job = document.getElementById("job");
+  const toastEl = document.getElementById("toast");
   const start = document.getElementById("start");
   const gl = canvas.getContext("webgl2", { antialias: false, preserveDrawingBuffer: params.has("shot") });
   if (!gl) {
@@ -15,6 +17,9 @@
   // The main thread keeps its own copy of the world for collisions, the HUD
   // and as a fallback renderer; workers build identical copies (seeded RNG).
   const FONT = makeFont(), CITY = makeCity(), RENDER = makeRenderer(CITY, FONT);
+  let store = null;
+  try { store = window.localStorage; } catch (e) { /* blocked: progress just isn't saved */ }
+  const delivery = makeDelivery(CITY, params.has("shot") ? null : store);
   const W = CITY.W, P = CITY.P;
 
   // ---------- GL setup ----------
@@ -159,10 +164,13 @@
   let mouseDX = 0, mouseDY = 0;
   addEventListener("keydown", e => {
     keys.add(e.code);
-    if (e.code === "KeyF") { fly = !fly; }
+    if (e.code === "KeyF") {
+      if (delivery.carrying() && !fly) toast({ text: "CAN'T FLY", sub: "not with a hot pizza - walk it there!" });
+      else fly = !fly;
+    }
     else if (e.code === "KeyR") rainOn = !rainOn;
     else if (e.code === "KeyG") glow = !glow;
-    else if (e.code === "KeyH") { hudOn = !hudOn; hud.classList.toggle("hidden", !hudOn); }
+    else if (e.code === "KeyH") { hudOn = !hudOn; hud.classList.toggle("hidden", !hudOn); job.classList.toggle("hidden", !hudOn); }
     else if (e.code === "BracketLeft") { fontPx = Math.max(6, fontPx - 1); layout(); }
     else if (e.code === "BracketRight") { fontPx = Math.min(32, fontPx + 1); layout(); }
     if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault();
@@ -294,13 +302,35 @@ onmessage = e => {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     fpsN++;
   }
+  // ---------- delivery toasts ----------
+  const toasts = [];
+  let toastT = 0;
+  function toast(ev) { toasts.push(ev); }
+  function updateToast(dt) {
+    toastT -= dt;
+    if (toastT > 0) return;
+    if (!toasts.length) { toastEl.classList.remove("show"); return; }
+    const ev = toasts.shift();
+    toastEl.className = "show " + (ev.type || "");
+    toastEl.innerHTML = `<div class="big">${ev.text}</div><div class="small">${ev.sub || ""}</div>`;
+    toastT = 2.6;
+  }
+  let jobT = 0;
+
   function frame(now) {
     const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
     last = now;
     simT += dt;
     rainDt += dt;
     rainYaw += update(dt);
-    const eye = { x: cam.x, y: cam.y, z: cam.z + (fly ? 0 : Math.sin(bob) * 0.045), yaw: cam.yaw, pitch: cam.pitch, fov: cam.fov };
+    for (const ev of delivery.update(cam, dt)) {
+      toast(ev);
+      if (ev.type === "pickup" && fly) fly = false; // walk the pizza there
+    }
+    updateToast(dt);
+    jobT -= dt;
+    if (hudOn && jobT <= 0) { jobT = 0.08; job.innerHTML = delivery.hudHTML(cam); }
+    const eye = { x: cam.x, y: cam.y, z: cam.z + (fly ? 0 : Math.sin(bob) * 0.045), yaw: cam.yaw, pitch: cam.pitch, fov: cam.fov, goal: delivery.goal() };
     if (pool.length) {
       if (pending === 0) dispatch(eye);
     } else {

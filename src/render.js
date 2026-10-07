@@ -37,6 +37,9 @@ function makeRenderer(CITY, FONT) {
   let time = 0;
   let fpkH = 0.01, fpkV = 0.02; // size of one cell per metre of distance
   let rdx = 0, rdy = 0, rdz = 0;  // direction of the ray being shaded
+  // current delivery objective (set per frame from cam.goal)
+  let goalOn = false, goalX = 0, goalY = 0, goalR = 0, goalG = 0, goalB = 0;
+  const BEACON_H = 170;
   let outC = 32, outR = 0, outG = 0, outB = 0, outE = 0;
   function out(c, r, g, b, e) { outC = c; outR = r; outG = g; outB = b; outE = e; }
 
@@ -395,6 +398,10 @@ function makeRenderer(CITY, FONT) {
         const r = Math.floor(pz / 0.3) & 1;
         return out(r ? C("_") : (q ? C("]") : C("[")), 200 + (c >> 16 & 255) * 0.2, 200, 210, 1);
       }
+      case M.PIZZERIA: { // red/white striped awning
+        const u = ax === 0 ? py : px;
+        return (Math.floor(u / 0.45) & 1) ? out(C("#"), 235, 60, 35, 0.7) : out(C("="), 245, 235, 215, 0.7);
+      }
       case M.ANTENNA: {
         const o = b * 6;
         if (B[o + 5] - pz < 1.2) {
@@ -485,6 +492,16 @@ function makeRenderer(CITY, FONT) {
   }
 
   function shadeGround(px, py, t, fp, dx, dy, dz, fpk, depth) {
+    if (goalOn) { // pulsing target ring on the ground around the objective
+      let ex = px - goalX; ex -= W * Math.round(ex / W);
+      let ey = py - goalY; ey -= W * Math.round(ey / W);
+      const d = Math.sqrt(ex * ex + ey * ey);
+      if (d < 3.3) {
+        const w = Math.max(0.16, fp * 0.6), pulse = (time * 0.8 % 1) * 3;
+        if (Math.abs(d - 3) < w) { out(C("O"), goalR, goalG, goalB, 1); return; }
+        if (Math.abs(d - pulse) < w * 0.8) { out(C("o"), goalR * 0.8, goalG * 0.8, goalB * 0.8, 1); return; }
+      }
+    }
     let gx = px % P; if (gx < 0) gx += P;
     let gy = py % P; if (gy < 0) gy += P;
     const rx = gx > 32 ? gx - 64 : gx, ry = gy > 32 ? gy - 64 : gy;
@@ -544,10 +561,47 @@ function makeRenderer(CITY, FONT) {
     out(hash2(Math.floor(px * 2), Math.floor(py * 2)) < 0.5 ? C(".") : C(","), 50 * lr, 45 * lg, 60 * lb, 0);
   }
 
+  // Translucent light column over the delivery objective. It is always at
+  // least one cell wide so it can be spotted from anywhere, and anything
+  // closer than the column (buildings) hides it.
+  function beacon(ox, oy, oz, dx, dy, dz, tHit) {
+    let ex = goalX - ox; ex -= W * Math.round(ex / W);
+    let ey = goalY - oy; ey -= W * Math.round(ey / W);
+    const a = dx * dx + dy * dy;
+    if (a < 1e-6) return;
+    const tc = (ex * dx + ey * dy) / a;
+    if (tc <= 0.5 || tc >= tHit) return;
+    const qx = ex - dx * tc, qy = ey - dy * tc;
+    const r = Math.max(0.8, tc * fpkH * 1.6);  // core: >= ~3 cells wide at any distance
+    const d2 = qx * qx + qy * qy;
+    if (d2 >= 9 * r * r) return;
+    const z = oz + dz * tc;
+    if (z < 0 || z > BEACON_H) return;
+    if (d2 >= r * r) { // soft halo around the core
+      const h = 0.22 * (1 - (Math.sqrt(d2) / r - 1) / 2) * (1 - 0.6 * z / BEACON_H);
+      outR = Math.min(255, outR + goalR * h); outG = Math.min(255, outG + goalG * h); outB = Math.min(255, outB + goalB * h);
+      return;
+    }
+    const edge = Math.sqrt(d2) / r;
+    const k = ((1 - edge) * 0.6 + 0.3) * (1 - 0.6 * z / BEACON_H);
+    outR = Math.min(255, outR * (1 - k * 0.5) + goalR * k);
+    outG = Math.min(255, outG * (1 - k * 0.5) + goalG * k);
+    outB = Math.min(255, outB * (1 - k * 0.5) + goalB * k);
+    if (edge < 0.6 || outC === 32) {
+      const ph = ((Math.floor(z * 1.2 - time * 8) % 4) + 4) % 4;
+      outC = ph === 0 ? C("!") : ph === 2 ? C(":") : C("|");
+    }
+    outE = 1;
+  }
+
   function shade(ox, oy, oz, dx, dy, dz, fpk, depth) {
     const kind = trace(ox, oy, oz, dx, dy, dz, MAXD);
     rdx = dx; rdy = dy; rdz = dz;
-    if (kind === 0) { shadeSky(dx, dy, dz); return; }
+    if (kind === 0) {
+      shadeSky(dx, dy, dz);
+      if (goalOn) beacon(ox, oy, oz, dx, dy, dz, MAXD);
+      return;
+    }
     const t = hT;
     const px = ox + dx * t, py = oy + dy * t, pz = oz + dz * t;
     const fp = t * fpk;
@@ -564,6 +618,7 @@ function makeRenderer(CITY, FONT) {
     outR = outR * (1 - f) + FOG_R * f;
     outG = outG * (1 - f) + FOG_G * f;
     outB = outB * (1 - f) + FOG_B * f;
+    if (goalOn) beacon(ox, oy, oz, dx, dy, dz, t);
   }
 
   // Render the character grid rows k, k+n, k+2n, ... (interleaved so several
@@ -572,6 +627,9 @@ function makeRenderer(CITY, FONT) {
   function render(cam, cols, rows, pxAspect, buf, t, k = 0, n = 1) {
     time = t;
     updateVehicles(t);
+    const g = cam.goal;
+    goalOn = !!g;
+    if (g) { goalX = g.x; goalY = g.y; goalR = g.r; goalG = g.g; goalB = g.b; }
     const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
     const fx = cp * cy, fy = cp * sy, fz = sp;       // forward
     const rx = sy, ry = -cy, rz = 0;                   // right
